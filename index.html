@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1000 只猫</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="1000只猫">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* --- Animated cat background --- */
+  canvas#bgCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Everything else above canvas */
+  .hero, .ios-prompt, .progress, .status, .tip, .grid {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 50px 20px 20px;
+    max-width: 600px;
+  }
+  .cat-icon {
+    font-size: 5em;
+    margin-bottom: 12px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  .hero h1 {
+    font-size: 2.4em;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #ff6b00, #ff9500, #ffcc00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    color: #ccc;
+    font-size: 1.1em;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .btn {
+    display: inline-block;
+    padding: 16px 36px;
+    background: linear-gradient(135deg, #ff6b00, #ff9500);
+    color: #fff;
+    border: none;
+    border-radius: 30px;
+    font-size: 1.15em;
+    font-weight: 600;
+    cursor: pointer;
+    margin: 8px;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 20px rgba(255, 107, 0, 0.4);
+  }
+  .btn:hover { transform: scale(1.03); box-shadow: 0 6px 28px rgba(255, 107, 0, 0.5); }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+  .btn.save-btn {
+    background: linear-gradient(135deg, #30d158, #34c759);
+    font-size: 0.85em;
+    padding: 8px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(52, 199, 89, 0.3);
+  }
+  .btn.install-btn {
+    background: linear-gradient(135deg, #007aff, #5ac8fa);
+    font-size: 0.95em;
+    padding: 12px 28px;
+    display: none;
+    box-shadow: 0 4px 20px rgba(0, 122, 255, 0.4);
+  }
+  .btn.download-all {
+    background: linear-gradient(135deg, #ff2d55, #ff6b9d);
+    font-size: 1.2em;
+    padding: 18px 42px;
+    display: none;
+    box-shadow: 0 4px 24px rgba(255, 45, 85, 0.5);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 4px 24px rgba(255, 45, 85, 0.5); }
+    50% { box-shadow: 0 6px 36px rgba(255, 45, 85, 0.8); }
+  }
+  .download-section {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    margin: 20px 0;
+  }
+  .download-status {
+    color: #aaa;
+    font-size: 0.9em;
+    margin-top: 10px;
+    min-height: 1.2em;
+  }
+  .progress {
+    width: 85%;
+    max-width: 400px;
+    height: 10px;
+    background: #1a1a1a;
+    border-radius: 10px;
+    margin: 16px auto;
+    overflow: hidden;
+    display: none;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ff6b00, #ff9500, #ffcc00);
+    border-radius: 10px;
+    transition: width 0.3s;
+  }
+  .status {
+    color: #aaa;
+    font-size: 0.95em;
+    margin: 8px 0 16px;
+    min-height: 1.2em;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+    padding: 10px;
+    width: 100%;
+    max-width: 900px;
+  }
+  .grid img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 10px;
+    background: #1a1a1a;
+    transition: transform 0.2s;
+  }
+  .grid img:hover { transform: scale(1.03); }
+  .card {
+    position: relative;
+  }
+  .card .save-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    margin: 0;
+  }
+  .tip {
+    background: rgba(26, 26, 26, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 14px 20px;
+    margin: 10px 20px 20px;
+    max-width: 500px;
+    text-align: center;
+    color: #ccc;
+    font-size: 0.85em;
+    line-height: 1.6;
+    display: none;
+  }
+  .ios-prompt {
+    background: rgba(26, 26, 26, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 16px;
+    padding: 18px 24px;
+    margin: 16px 20px;
+    max-width: 500px;
+    text-align: center;
+    color: #ccc;
+    font-size: 0.9em;
+    line-height: 1.6;
+    display: none;
+  }
+  .ios-prompt strong { color: #fff; }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div class="hero">
+  <div class="cat-icon">&#128049;</div>
+  <h1>1000 只猫咪</h1>
+  <p>恭喜你！你被选中接收 1,000 张猫咪照片。不用谢。</p>
+  <button class="btn install-btn" id="installBtn">安装应用</button>
+  <br>
+  <button class="btn" id="loadBtn" onclick="loadCats()">给我猫咪！</button>
+</div>
+
+<div class="ios-prompt" id="iosPrompt">
+  <strong>添加到主屏幕，获得完整体验！</strong><br>
+  点击 Safari 底部的分享按钮，然后选择<strong>"添加到主屏幕"</strong>
+</div>
+
+<div class="progress" id="progress">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+<div class="status" id="status"></div>
+
+<div class="tip" id="tip">
+  <strong>保存到相册：</strong><br>
+  长按任意图片 &rarr; "添加到照片"<br>
+  或点击每张图片上的绿色保存按钮。
+</div>
+
+<div class="download-section">
+  <button class="btn download-all" id="downloadAllBtn" onclick="downloadAll()">&#128229; 获取你的猫咪！</button>
+  <div class="download-status" id="downloadStatus"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+// --- Animated digital cat background ---
+(function() {
+  const canvas = document.getElementById("bgCanvas");
+  const ctx = canvas.getContext("2d");
+  let w, h;
+  const cats = [];
+  const CAT_EMOJIS = ["🐱", "🐈", "😺", "😸", "😻", "🙀", "😹", "😽", "🐈‍⬛", "🐾"];
+  const NUM_CATS = 35;
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  for (let i = 0; i < NUM_CATS; i++) {
+    cats.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      size: 16 + Math.random() * 30,
+      speed: 0.2 + Math.random() * 0.6,
+      drift: (Math.random() - 0.5) * 0.4,
+      opacity: 0.08 + Math.random() * 0.15,
+      emoji: CAT_EMOJIS[Math.floor(Math.random() * CAT_EMOJIS.length)],
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.01
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    cats.forEach(c => {
+      c.y -= c.speed;
+      c.x += c.drift;
+      c.rotation += c.rotSpeed;
+      if (c.y < -50) { c.y = h + 50; c.x = Math.random() * w; }
+      if (c.x < -50) c.x = w + 50;
+      if (c.x > w + 50) c.x = -50;
+
+      ctx.save();
+      ctx.globalAlpha = c.opacity;
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rotation);
+      ctx.font = c.size + "px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(c.emoji, 0, 0);
+      ctx.restore();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// --- PWA Install ---
+let deferredPrompt;
+const installBtn = document.getElementById("installBtn");
+
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.style.display = "inline-block";
+});
+
+installBtn.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.style.display = "none";
+});
+
+// iOS Safari detection
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone === true;
+if (isIOS && !isStandalone) {
+  document.getElementById("iosPrompt").style.display = "block";
+}
+
+// --- Service Worker ---
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+// --- Cat Loading ---
+const TOTAL = 1000;
+const BATCH = 10;
+const API = "https://api.thecatapi.com/v1/images/search?limit=" + BATCH;
+
+const grid = document.getElementById("grid");
+const progressEl = document.getElementById("progress");
+const progressBar = document.getElementById("progressBar");
+const status = document.getElementById("status");
+const tip = document.getElementById("tip");
+const loadBtn = document.getElementById("loadBtn");
+const downloadAllBtn = document.getElementById("downloadAllBtn");
+const downloadStatus = document.getElementById("downloadStatus");
+
+let loaded = 0;
+const catUrls = []; // store all loaded image URLs
+
+async function loadCats() {
+  loadBtn.disabled = true;
+  loadBtn.textContent = "加载中...";
+  progressEl.style.display = "block";
+  tip.style.display = "block";
+  if (!isStandalone) {
+    document.getElementById("iosPrompt").style.display = "none";
+  }
+
+  for (let i = 0; i < TOTAL / BATCH; i++) {
+    try {
+      const res = await fetch(API);
+      const cats = await res.json();
+      cats.forEach(cat => {
+        loaded++;
+        catUrls.push(cat.url);
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const img = document.createElement("img");
+        img.src = cat.url;
+        img.alt = "猫咪 #" + loaded;
+        img.loading = "lazy";
+        card.appendChild(img);
+
+        const btn = document.createElement("a");
+        btn.className = "btn save-btn";
+        btn.href = cat.url;
+        btn.download = "cat-" + loaded + ".jpg";
+        btn.target = "_blank";
+        btn.rel = "noopener";
+        btn.textContent = "保存";
+        card.appendChild(btn);
+
+        grid.appendChild(card);
+      });
+    } catch (e) {
+      i--;
+      await new Promise(r => setTimeout(r, 1000));
+      continue;
+    }
+
+    const pct = Math.min(100, Math.round((loaded / TOTAL) * 100));
+    progressBar.style.width = pct + "%";
+    status.textContent = "已加载 " + loaded + " / " + TOTAL + " 只猫咪";
+
+    // Show download button as cats load (available after first batch)
+    if (loaded >= BATCH) {
+      downloadAllBtn.style.display = "inline-block";
+    }
+
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  loadBtn.textContent = "全部 1,000 只猫咪已加载！";
+  status.textContent = "完成！点击下方粉色按钮一键下载全部猫咪。";
+}
+
+async function downloadAll() {
+  if (catUrls.length === 0) return;
+
+  downloadAllBtn.disabled = true;
+  downloadAllBtn.textContent = "打包中...";
+  downloadStatus.textContent = "正在下载猫咪图片并打包成ZIP...";
+
+  const zip = new JSZip();
+  const folder = zip.folder("1000cats");
+  let done = 0;
+  const total = catUrls.length;
+
+  // Download in parallel batches of 5
+  for (let i = 0; i < total; i += 5) {
+    const batch = catUrls.slice(i, i + 5);
+    const results = await Promise.allSettled(
+      batch.map(async (url, j) => {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const ext = url.split('.').pop().split('?')[0] || 'jpg';
+          folder.file(`cat-${i + j + 1}.${ext}`, blob);
+        } catch (e) { /* skip failed */ }
+      })
+    );
+    done += batch.length;
+    const pct = Math.round((done / total) * 100);
+    downloadStatus.textContent = `正在打包: ${done} / ${total} (${pct}%)`;
+  }
+
+  downloadStatus.textContent = "正在生成ZIP文件...请稍等...";
+
+  const blob = await zip.generateAsync({ type: "blob" }, (meta) => {
+    downloadStatus.textContent = `生成ZIP: ${Math.round(meta.percent)}%`;
+  });
+
+  // Trigger download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "1000-cats.zip";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  downloadAllBtn.textContent = "&#128229; 下载完成！再来一次？";
+  downloadAllBtn.disabled = false;
+  downloadStatus.textContent = "ZIP已下载！打开"文件"应用 → 选择全部图片 → 保存到相册 &#128248;";
+}
+</script>
+
+</body>
+</html>
